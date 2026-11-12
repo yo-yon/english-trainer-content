@@ -1,4 +1,13 @@
 {
  "format": 1,
- "packs": []
+ "packs": [
+  {
+   "id": "2026-W46",
+   "file": "packs/2026-W46.json",
+   "published": "2026-11-12",
+   "words": 70,
+   "sentences": 35,
+   "scenes": 7
+  }
+ ]
 }
