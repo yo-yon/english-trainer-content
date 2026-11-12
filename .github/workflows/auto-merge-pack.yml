@@ -1,0 +1,57 @@
+# 週ごとのパックの自動マージ：定期タスクが作った pack/* のプルリクエストを、「Check pack」が成功したらスカッシュでマージする。
+# 公開リポジトリなので、作成者がオーナーで、同じリポジトリのブランチで、決められたファイルだけを変えたものに限る。
+# プルリクエストのコードは取得・実行しない（API だけを使う）。
+name: Auto-merge pack
+
+on:
+  workflow_run:
+    workflows: ["Check pack"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-merge-pack
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      startsWith(github.event.workflow_run.head_branch, 'pack/') &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: 対象のプルリクエストを確かめる
+        id: pr
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/$REPO/pulls?state=open&base=main&head=$OWNER:$HEAD_BRANCH" --jq '.[0]')
+          if [ -z "$pr" ] || [ "$pr" = "null" ]; then echo "開いているプルリクエストがありません"; exit 0; fi
+          num=$(jq -r '.number' <<<"$pr")
+          author=$(jq -r '.user.login' <<<"$pr")
+          sha=$(jq -r '.head.sha' <<<"$pr")
+          if [ "$author" != "$OWNER" ]; then echo "作成者が $OWNER ではないため、マージしません（$author）"; exit 0; fi
+          if [ "$sha" != "$HEAD_SHA" ]; then echo "検査後に新しいコミットがあるため、マージしません"; exit 0; fi
+          # 新しいパック1つと index.json 以外の変更があれば、マージしない
+          files=$(gh api "repos/$REPO/pulls/$num/files" --paginate --jq '.[] | "\(.status) \(.filename)"')
+          echo "変更ファイル："; echo "$files"
+          bad=$(grep -vxE 'modified index\.json|added packs/[0-9]{4}-W[0-9]{2}\.json' <<<"$files" || true)
+          if [ -n "$bad" ]; then echo "決められた変更以外があるため、マージしません："; echo "$bad"; exit 0; fi
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
+      - name: スカッシュでマージ
+        if: steps.pr.outputs.number != ''
+        run: |
+          gh api -X PUT "repos/$REPO/pulls/${{ steps.pr.outputs.number }}/merge" \
+            -f merge_method=squash -f sha="$HEAD_SHA" --jq '.message'

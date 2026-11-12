@@ -1,0 +1,31 @@
+# パックの検査：週ごとのパックの追加や修正のプルリクエストで、アプリが取り込むときと同じ規則で確かめる。
+# 外部への接続やシークレットは使わない。
+name: Check pack
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: ツールのテスト
+        working-directory: tools
+        run: node --test test/*.test.mjs
+
+      - name: パックの検査
+        working-directory: tools
+        run: node pack.mjs --check
