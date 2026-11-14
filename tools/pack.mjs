@@ -15,8 +15,9 @@ const INDEX = new URL("index.json", ROOT);
 const PACKS = new URL("packs/", ROOT);
 
 // 1週間に作る数。アプリの初期設定（1日の新しい単語10語・文5文）の7日分と、会話の場面を1日1つ
-export const PER_WEEK = { general: 35, tech: 35, session: 14, conversation: 21, scenes: 7 };
-export const MIN = { words: 50, sentences: 25, scenes: 5 };
+// 2026-11-15：単語を週70語→35語に（アプリの「1日の新しい単語」の初期値5語の7日分に合わせる）
+export const PER_WEEK = { general: 18, tech: 17, session: 14, conversation: 21, scenes: 7 };
+export const MIN = { words: 25, sentences: 25, scenes: 5 };
 // 場面の分野は週ごとに順番をずらして、3つの分野が偏らないようにする
 export const SCENE_GROUPS = R.SCENE_GROUPS;
 
