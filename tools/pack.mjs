@@ -14,12 +14,20 @@ const ROOT = new URL("../", import.meta.url);
 const INDEX = new URL("index.json", ROOT);
 const PACKS = new URL("packs/", ROOT);
 
-// 1週間に作る数。アプリの初期設定（1日の新しい単語10語・文5文）の7日分と、会話の場面を1日1つ
+// 1週間に作る数。アプリの初期設定（1日の新しい単語5語・文5文）の7日分と、会話の場面を1日1つ
 // 2026-11-15：単語を週70語→35語に（アプリの「1日の新しい単語」の初期値5語の7日分に合わせる）
-export const PER_WEEK = { general: 18, tech: 17, session: 14, conversation: 21, scenes: 7 };
+// 2026-11-15：技術に偏っていたため、日常生活を中心に配分を変えた（合計の数は同じ）
+//   general 25 のうち dailyWords 18 は日常生活・旅行の語、conversation 28 のうち dailySentences 20 は日常生活・旅行の場面
+export const PER_WEEK = { general: 25, dailyWords: 18, tech: 10, session: 7, conversation: 28, dailySentences: 20, scenes: 7 };
 export const MIN = { words: 25, sentences: 25, scenes: 5 };
-// 場面の分野は週ごとに順番をずらして、3つの分野が偏らないようにする
 export const SCENE_GROUPS = R.SCENE_GROUPS;
+// 場面の分野の割り振り（7つ）：旅行・日常4・カンファレンス2・職場・オンライン会議1（2026-11-15）。週ごとに開始位置をずらす
+export const SCENE_PATTERN = ["旅行・日常", "カンファレンス", "旅行・日常", "職場・オンライン会議", "旅行・日常", "カンファレンス", "旅行・日常"];
+
+// 日常生活の語・文で回す話題（手順書の表と同じ）。週ごとに偏らないよう、最近のパックで少ない話題から選ぶ
+export const DAILY_LIFE_TOPICS = ["スーパー・食料品の買い物", "天気・世間話", "家・近所・ご近所づきあい", "銀行・郵便・各種の手続き", "病院・薬局・体調",
+  "車・ガソリン・ライドシェア", "修理・故障・トラブル", "家族・趣味・週末の過ごし方", "支払い・チップ・割り勘", "宅配・ネット注文・返品",
+  "外食・テイクアウト", "電話・予約・問い合わせ", "空港・ホテル・観光"];
 
 const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
 const pad = (n) => String(n).padStart(2, "0");
@@ -38,11 +46,11 @@ export function isoWeek(dateStr) {
   const week = 1 + Math.round(((d - jan4) / 86400000 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
   return `${year}-W${pad(week)}`;
 }
-/** その週の場面の分野（7つ）。週番号で開始位置をずらして回す */
+/** その週の場面の分野（7つ）。SCENE_PATTERN を週番号で開始位置をずらして回す */
 export function sceneGroupPlan(week, n = PER_WEEK.scenes) {
   const k = R.packKeys(week);
-  const start = k ? (k.base / 1000) % SCENE_GROUPS.length : 0;
-  return Array.from({ length: n }, (_, i) => SCENE_GROUPS[(start + i) % SCENE_GROUPS.length]);
+  const start = k ? (k.base / 1000) % SCENE_PATTERN.length : 0;
+  return Array.from({ length: n }, (_, i) => SCENE_PATTERN[(start + i) % SCENE_PATTERN.length]);
 }
 
 /** 新しいパックを組み立てる（ファイルには書かない）。errors があれば何も書かない */
@@ -147,6 +155,7 @@ async function main(argv) {
       week, published: today, exists: packs.has(week), perWeek: PER_WEEK,
       sceneGroups: sceneGroupPlan(week),
       sentenceScenes: R.SCENES,
+      dailyLifeTopics: DAILY_LIFE_TOPICS,
       registeredWords: list.flatMap((p) => p.words.map((w) => w.word)),
       recentSentences: list.slice(-4).flatMap((p) => p.sentences.map((s) => s.text)),
       sceneTitles: list.flatMap((p) => (p.scenes || []).map((c) => c.title)),
